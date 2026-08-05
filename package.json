@@ -1,16 +1,14 @@
 {
   "name": "ict-whatsapp-bot",
   "version": "1.0.0",
-  "description": "WhatsApp Bot for O/L ICT MCQs",
+  "description": "WhatsApp Bot with Baileys and Gemini AI",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
   "dependencies": {
-   "@google/genai": "latest",
-    "dotenv": "^16.4.5",
-    "puppeteer": "^22.10.0",
-    "qrcode-terminal": "^0.12.0",
-    "whatsapp-web.js": "^1.23.0"
+    "@whiskeysockets/baileys": "^6.7.8",
+    "@google/genai": "latest",
+    "qrcode-terminal": "^0.12.0"
   }
 }
