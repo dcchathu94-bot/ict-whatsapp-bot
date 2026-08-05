@@ -8,6 +8,8 @@ require('dotenv').config();
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
+console.log('Bot is starting up... Please wait.');
+
 const client = new Client({
     authStrategy: new LocalAuth(),
     puppeteer: {
@@ -16,9 +18,6 @@ const client = new Client({
             '--no-sandbox',
             '--disable-setuid-sandbox',
             '--disable-dev-shm-usage',
-            '--disable-accelerated-2d-canvas',
-            '--no-first-run',
-            '--no-zygote',
             '--disable-gpu'
         ]
     }
