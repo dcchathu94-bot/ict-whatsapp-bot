@@ -57,27 +57,29 @@ async function sendDailyPollMCQ(sock) {
     try {
         console.log('Gemini AI මඟින් MCQ ප්‍රශ්නය සහ විස්තරය සකසමින් පවතී...');
         
-        const prompt = `You are a Sri Lankan GCE O/L ICT Teacher. Generate one single-choice MCQ question in Sinhala based on the Grade 10/11 ICT syllabus.
-Provide the response STRICTLY as a JSON object with this structure:
+        // වඩාත් සරල සහ වේගවත් Prompt එකක්
+        const prompt = `Act as an O/L ICT Teacher in Sri Lanka. Give one Sinhala MCQ based on Grade 10/11 ICT.
+Return ONLY valid JSON format:
 {
-  "question": "ප්‍රශ්නය මෙතනට",
-  "options": ["පිළිතුර 1", "පිළිතුර 2", "පිළිතුර 3", "පිළිතුර 4"],
-  "correctAnswer": "හරි පිළිතුර මෙහි සඳහන් කරන්න",
-  "explanation": "මෙම පිළිතුර නිවැරදි වීමට හේතුව සහ කෙටි විස්තරය මෙතනට"
+  "question": "question in sinhala",
+  "options": ["ans1", "ans2", "ans3", "ans4"],
+  "correctAnswer": "correct answer text",
+  "explanation": "short explanation in sinhala"
 }`;
 
+        // වේගවත්ම සහ ස්ථාවර මෝඩල් එක භාවිතා කිරීම
         const response = await ai.models.generateContent({
-            model: 'gemini-3.6-flash',
+            model: 'gemini-1.5-flash',
             contents: prompt,
             config: { responseMimeType: 'application/json' }
         });
 
         const data = JSON.parse(response.text);
         
-        // මෙහි ඔබේ අංකය හෝ ළමයින්ගේ Group එකේ JID එක දාන්න
+        // මෙහි ඔබේ අංකය හෝ Group එකේ JID එක දාන්න
         const targetJid = '947XXXXXXXX@s.whatsapp.net'; 
 
-        // 1. කලින් ප්‍රශ්නයක් තිබුණා නම්, මුලින්ම ඒකේ නිවැරදි පිළිතුර සහ විස්තරය යැවීම
+        // 1. කලින් ප්‍රශ්නේ පිළිතුර යැවීම
         if (lastQuestionExplanation) {
             const answerText = `💡 *පසුගිය ප්‍රශ්නේ නිවැරදි පිළිතුර සහ විස්තරය:* \n\n✅ *හරි පිළිතුර:* ${lastQuestionExplanation.correctAnswer}\n📖 *විස්තරය:* ${lastQuestionExplanation.explanation}`;
             await sock.sendMessage(targetJid, { text: answerText });
@@ -95,16 +97,14 @@ Provide the response STRICTLY as a JSON object with this structure:
         
         console.log('✅ අලුත් MCQ Poll එක සාර්ථකව යැව්වා!');
 
-        // ඊළඟ වතාවට පාවිච්චි කිරීමට වත්මන් ප්‍රශ්නේ උත්තරය සහ විස්තරය සේව් කර තැබීම
         lastQuestionExplanation = {
             correctAnswer: data.correctAnswer,
             explanation: data.explanation
         };
 
     } catch (error) {
-        console.error('⚠️ AI සර්වර් තදබදයකි හෝ දෝෂයකි. තත්පර 30කින් නැවත උත්සාහ කරයි...', error.message);
+        console.error('⚠️ දෝෂයක් ඇතිවිය. තත්පර 30කින් නැවත උත්සාහ කරයි...', error.message);
         
-        // 503 හෝ වෙනත් AI දෝෂයක් ආවොත් බොට් ක්‍රෑෂ් නොවී තත්පර 30කින් නැවත උත්සාහ කිරීම
         setTimeout(() => {
             console.log('🔄 මඟහැරුණු MCQ ප්‍රශ්නය යැවීමට නැවත උත්සාහ කරමින්...');
             sendDailyPollMCQ(sock);
