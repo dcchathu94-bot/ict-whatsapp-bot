@@ -33,11 +33,14 @@ async function connectToWhatsApp() {
             if (shouldReconnect) {
                 connectToWhatsApp();
             }
-        } else if (connection === 'open') {
+        } } else if (connection === 'open') {
             console.log('✅ Baileys WhatsApp Bot සාර්ථකව සම්බන්ධ වුණා!');
             
-            // ලොග් වුණු ගමන් පළමු MCQ එක යැවීම (විනාඩි 5න් 5ට යැවීමට Scheduled)
-            sendDailyPollMCQ(sock);
+            // Connection එක Settle වීමට තත්පර 10ක් ලබා දීම
+            setTimeout(() => {
+                sendDailyPollMCQ(sock);
+            }, 10000);
+
             setInterval(() => {
                 sendDailyPollMCQ(sock);
             }, 5 * 60 * 1000);
