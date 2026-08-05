@@ -91,11 +91,7 @@ Return STRICTLY valid JSON format:
         }
 
         // 📌 ඔබේ WhatsApp Group එකේ Invite Link එකේ අග කොටස මෙහි දාන්න
-        const inviteCode = 'BEIq3cVzm5z0grQSsJFYac'; 
-
-        // Invite Code එක හරහා ගෲප් එකේ JID එක ලබා ගැනීම
-        const groupData = await sock.groupGetInfoFromInvite(inviteCode);
-        const targetJid = groupData.id;
+       const targetJid = '94715477061@s.whatsapp.net'; // දැනට පරීක්ෂා කිරීමට ඔබේ අංකය දමා ඇත. ගෲප් JID එක මෙයට මාරු කරන්න.
 
         if (targetJid) {
             // 1. කලින් ප්‍රශ්නයක් තිබුණා නම්, අලුත් ප්‍රශ්නයට පෙර එහි නිවැරදි පිළිතුර සහ විස්තරය යැවීම
@@ -115,6 +111,8 @@ Return STRICTLY valid JSON format:
             
             console.log('✅ ගෲප් වෙත අලුත් MCQ Poll එක සහ පිළිතුර සාර්ථකව යැව්වා!');
         }
+            
+        
 
         lastQuestionExplanation = {
             correctAnswer: data.correctAnswer,
