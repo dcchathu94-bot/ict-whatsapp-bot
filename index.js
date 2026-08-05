@@ -33,7 +33,7 @@ async function connectToWhatsApp() {
             if (shouldReconnect) {
                 connectToWhatsApp();
             }
-        } } else if (connection === 'open') {
+        } else if (connection === 'open') {
             console.log('✅ Baileys WhatsApp Bot සාර්ථකව සම්බන්ධ වුණා!');
             
             // Connection එක Settle වීමට තත්පර 10ක් ලබා දීම
