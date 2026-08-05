@@ -69,7 +69,7 @@ Return ONLY valid JSON format:
 
         // වේගවත්ම සහ ස්ථාවර මෝඩල් එක භාවිතා කිරීම
         const response = await ai.models.generateContent({
-            model: 'gemini-1.5-flash',
+            model: 'gemini-3.5-flash',
             contents: prompt,
             config: { responseMimeType: 'application/json' }
         });
@@ -77,7 +77,7 @@ Return ONLY valid JSON format:
         const data = JSON.parse(response.text);
         
         // මෙහි ඔබේ අංකය හෝ Group එකේ JID එක දාන්න
-        const targetJid = '947XXXXXXXX@s.whatsapp.net'; 
+        const targetJid = '94715477061@s.whatsapp.net'; 
 
         // 1. කලින් ප්‍රශ්නේ පිළිතුර යැවීම
         if (lastQuestionExplanation) {
