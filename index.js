@@ -9,6 +9,9 @@ http.createServer((req, res) => res.end('Baileys WhatsApp Bot is Running!')).lis
 // Gemini AI Setup
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
+// කලින් දුන් ප්‍රශ්නේ උත්තරය සහ විස්තරය මතක තබා ගැනීමට Variable එකක්
+let lastQuestionExplanation = null;
+
 async function connectToWhatsApp() {
     const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
     
@@ -36,27 +39,31 @@ async function connectToWhatsApp() {
         } else if (connection === 'open') {
             console.log('✅ Baileys WhatsApp Bot සාර්ථකව සම්බන්ධ වුණා!');
             
-            // Connection එක Settle වීමට තත්පර 10ක් ලබා දීම
+            // Connection එක Settle වීමට තත්පර 10ක් ලබා දී පළමු MCQ එක යැවීම
             setTimeout(() => {
                 sendDailyPollMCQ(sock);
             }, 10000);
 
+            // ළමයින්ගේ ගෲප් එකට යවද්දී මෙහි කාලය වෙනස් කරගත හැක (උදා: පැය 12කට හෝ 24කට වරක්)
             setInterval(() => {
                 sendDailyPollMCQ(sock);
-            }, 5 * 60 * 1000);
+            }, 5 * 60 * 1000); // දැනට ටෙස්ට් කිරීමට විනාඩි 5කට වරක්
         }
     });
 }
 
-// Gemini AI මඟින් MCQ එක සාදා Poll එකක් ලෙස යැවීමේ Function එක
+// Gemini AI මඟින් MCQ ප්‍රශ්නය, පිළිතුර සහ විස්තරය සකසා Poll එකක් ලෙස යැවීමේ Function එක
 async function sendDailyPollMCQ(sock) {
     try {
-        console.log('Gemini AI මඟින් MCQ ප්‍රශ්නය සකසමින් පවතී...');
+        console.log('Gemini AI මඟින් MCQ ප්‍රශ්නය සහ විස්තරය සකසමින් පවතී...');
+        
         const prompt = `You are a Sri Lankan GCE O/L ICT Teacher. Generate one single-choice MCQ question in Sinhala based on the Grade 10/11 ICT syllabus.
 Provide the response STRICTLY as a JSON object with this structure:
 {
   "question": "ප්‍රශ්නය මෙතනට",
-  "options": ["පිළිතුර 1", "පිළිතුර 2", "පිළිතුර 3", "පිළිතුර 4"]
+  "options": ["පිළිතුර 1", "පිළිතුර 2", "පිළිතුර 3", "පිළිතුර 4"],
+  "correctAnswer": "හරි පිළිතුර මෙහි සඳහන් කරන්න",
+  "explanation": "මෙම පිළිතුර නිවැරදි වීමට හේතුව සහ කෙටි විස්තරය මෙතනට"
 }`;
 
         const response = await ai.models.generateContent({
@@ -66,24 +73,42 @@ Provide the response STRICTLY as a JSON object with this structure:
         });
 
         const data = JSON.parse(response.text);
-        console.log('MCQ Poll එක සූදානම්:', data.question);
+        
+        // මෙහි ඔබේ අංකය හෝ ළමයින්ගේ Group එකේ JID එක දාන්න
+        const targetJid = '947XXXXXXXX@s.whatsapp.net'; 
 
-        // Bot ගේම අංකයට යැවීමට (පරීක්ෂා කිරීම සඳහා)
-        const targetJid = '94715477061@s.whatsapp.net'; 
+        // 1. කලින් ප්‍රශ්නයක් තිබුණා නම්, මුලින්ම ඒකේ නිවැරදි පිළිතුර සහ විස්තරය යැවීම
+        if (lastQuestionExplanation) {
+            const answerText = `💡 *පසුගිය ප්‍රශ්නේ නිවැරදි පිළිතුර සහ විස්තරය:* \n\n✅ *හරි පිළිතුර:* ${lastQuestionExplanation.correctAnswer}\n📖 *විස්තරය:* ${lastQuestionExplanation.explanation}`;
+            await sock.sendMessage(targetJid, { text: answerText });
+            console.log('✅ කලින් ප්‍රශ්නේ පිළිතුර යැව්වා.');
+        }
 
-        // WhatsApp Poll එකක් ලෙස යැවීම
+        // 2. අලුත් MCQ Poll එක යැවීම
         await sock.sendMessage(targetJid, {
             poll: {
                 name: data.question,
                 values: data.options,
-                selectableCount: 1 // එක පිළිතුරක් පමණක් තේරීමට
+                selectableCount: 1
             }
         });
         
-        console.log('✅ Poll එක සාර්ථකව WhatsApp වෙත යැව්වා!');
+        console.log('✅ අලුත් MCQ Poll එක සාර්ථකව යැව්වා!');
+
+        // ඊළඟ වතාවට පාවිච්චි කිරීමට වත්මන් ප්‍රශ්නේ උත්තරය සහ විස්තරය සේව් කර තැබීම
+        lastQuestionExplanation = {
+            correctAnswer: data.correctAnswer,
+            explanation: data.explanation
+        };
 
     } catch (error) {
-        console.error('MCQ යැවීමේදී දෝෂයක් ඇතිවිය:', error);
+        console.error('⚠️ AI සර්වර් තදබදයකි හෝ දෝෂයකි. තත්පර 30කින් නැවත උත්සාහ කරයි...', error.message);
+        
+        // 503 හෝ වෙනත් AI දෝෂයක් ආවොත් බොට් ක්‍රෑෂ් නොවී තත්පර 30කින් නැවත උත්සාහ කිරීම
+        setTimeout(() => {
+            console.log('🔄 මඟහැරුණු MCQ ප්‍රශ්නය යැවීමට නැවත උත්සාහ කරමින්...');
+            sendDailyPollMCQ(sock);
+        }, 30000);
     }
 }
 
