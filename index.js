@@ -1,3 +1,6 @@
+const http = require('http');
+http.createServer((req, res) => res.end('WhatsApp Bot is Running!')).listen(process.env.PORT || 3000);
+
 const { Client, LocalAuth, Poll } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
 const { GoogleGenAI } = require('@google/genai');
