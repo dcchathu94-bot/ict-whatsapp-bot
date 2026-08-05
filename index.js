@@ -105,8 +105,7 @@ async function sendDailyPollMCQ(sock) {
             askedQuestions.shift();
         }
 
-        // 📌 මෙහි ඔබේ WhatsApp Group එකේ Invite Link එකේ අග කොටස (Code එක) දාන්න
-        // උදාහරණයක් ලෙස: https://chat.whatsapp.com/BEIq3cVzm5z0grQSsJFYac නම්, මෙහි දිය යුත්තේ 'BEIq3cVzm5z0grQSsJFYac' වේ.
+        // 📌 ඔබේ WhatsApp Group එකේ Invite Link එකේ අග කොටස මෙහි දාන්න
         const inviteCode = 'BEIq3cVzm5z0grQSsJFYac'; 
 
         // Invite Code එක හරහා ගෲප් එකේ JID එක ලබා ගැනීම
@@ -116,7 +115,7 @@ async function sendDailyPollMCQ(sock) {
         if (targetJid) {
             // 1. කලින් ප්‍රශ්නයක් තිබුණා නම්, අලුත් ප්‍රශ්නයට පෙර එහි නිවැරදි පිළිතුර සහ විස්තරය යැවීම
             if (lastQuestionExplanation) {
-                const answerText = `💡 *පසුගිය ප්‍රශ්නේ නිවැරදි පිළිතුර සහ විස්තරය:* \n\n✅ *හරි පිළිතුර:* ${lastQuestionExplanation.correctAnswer}\n📖 *විස්තරය:* ${lastQuestionExplanation.explanation}`;
+                const answerText = `💡 *පසුගිය ප්‍රශ්නේ නිවැරදි පිළිතුර සහ විස්තරය:* \n\n✅ *හරි පිළිතුර:* ${lastQuestionExplanation.correctAnswer}\n📖 *පැහැදිලි කිරීම:* ${lastQuestionExplanation.explanation}`;
                 await sock.sendMessage(targetJid, { text: answerText });
             }
 
@@ -138,7 +137,13 @@ async function sendDailyPollMCQ(sock) {
         };
 
     } catch (error) {
-        console.error('⚠️ දෝෂයක් ඇතිවිය. ඊළඟ වාරයේදී නැවත උත්සාහ කරයි...', error.message);
+        console.error('⚠️ Time Out / AI තදබද දෝෂයක් ඇතිවිය. තත්පර 30කින් නැවත උත්සාහ කරයි...', error.message);
+        
+        // 🚨 මෙන්න Time-out එකකදී සර්වර් එක ක්‍රෑෂ් නොවී තත්පර 30කින් ස්වයංක්‍රීයව රිකවර් වන ආරක්ෂිත වැට (Auto-Retry)
+        setTimeout(() => {
+            console.log('🔄 මඟහැරුණු MCQ ප්‍රශ්නය යැවීමට නැවත උත්සාහ කරමින්...');
+            sendDailyPollMCQ(sock);
+        }, 30000);
     }
 }
 
