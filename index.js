@@ -47,7 +47,7 @@ async function connectToWhatsApp() {
                 sendDailyPollMCQ(sock);
             }, 10000);
 
-            // ළමයින්ගේ ගෲප් වලට යැවීමට නියමිත කාල පරතරය (දැන් විනාඩි 5කට වරක් ඇත. අවශ්‍ය නම් පැය 12කට හෝ 24කට වෙනස් කළ හැක)
+            // ⏱️ විනාඩි 5කට වරක් ප්‍රශ්න යැවීම (අලුත් Key එක නිසා දැන් අවුලක් නැත)
             setInterval(() => {
                 sendDailyPollMCQ(sock);
             }, 5 * 60 * 1000);
@@ -60,21 +60,21 @@ async function sendDailyPollMCQ(sock) {
     try {
         console.log('Gemini AI මඟින් 10/11 වසර පාඩම් වලින් අලුත්ම MCQ ප්‍රශ්නය සකසමින් පවතී...');
         
-       const previousQuestionsText = askedQuestions.length > 0 ? 
-            `Avoid these questions: ${JSON.stringify(askedQuestions.slice(-5))}` : '';
+        const previousQuestionsText = askedQuestions.length > 0 ? 
+            `Avoid these recent questions: ${JSON.stringify(askedQuestions.slice(-5))}` : '';
 
-        const prompt = `Act as an O/L ICT Teacher. Generate a Grade 10/11 ICT MCQ in clean Sinhala from these topics: 1.Intro, 2.Evolution, 3.Data Rep, 4.Logic Gates, 5.OS, 6.MS Word, 7.Excel, 8.Access, 9.PowerPoint.
+        const prompt = `Act as an expert O/L ICT Teacher in Sri Lanka. Generate ONE unique MCQ in clean Sinhala based on Grade 10 or 11 ICT syllabus from these topics: 1.Intro, 2.Evolution, 3.Data Rep, 4.Logic Gates, 5.OS, 6.MS Word, 7.Excel, 8.Access, 9.PowerPoint.
 ${previousQuestionsText}
-Return ONLY valid JSON:
+Return STRICTLY valid JSON format:
 {
-  "question": "Sinhala question",
+  "question": "Sinhala question text",
   "options": ["ans1", "ans2", "ans3", "ans4"],
   "correctAnswer": "exact correct option text",
   "explanation": "short explanation in sinhala"
 }`;
 
         const response = await ai.models.generateContent({
-            model: 'gemini-3.5-flash',
+            model: 'gemini-3.6-flash',
             contents: prompt,
             config: { 
                 responseMimeType: "application/json",
@@ -122,11 +122,10 @@ Return ONLY valid JSON:
         };
 
     } catch (error) {
-        console.error('⚠️ Time Out / AI තදබද දෝෂයක් ඇතිවිය. තත්පර 30කින් නැවත උත්සාහ කරයි...', error.message);
+        console.error('⚠️ දෝෂයක් ඇතිවිය. තත්පර 30කින් නැවත උත්සාහ කරයි...', error.message);
         
-        // 🚨 මෙන්න Time-out එකකදී සර්වර් එක ක්‍රෑෂ් නොවී තත්පර 30කින් ස්වයංක්‍රීයව රිකවර් වන ආරක්ෂිත වැට (Auto-Retry)
         setTimeout(() => {
-            console.log('🔄 මඟහැරුණු MCQ ප්‍රශ්නය යැවීමට නැවත උත්සාහ කරමින්...');
+            console.log('🔄 මඟහැරුණු ප්‍රශ්නය යැවීමට නැවත උත්සාහ කරමින්...');
             sendDailyPollMCQ(sock);
         }, 30000);
     }
