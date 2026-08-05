@@ -57,19 +57,28 @@ Provide the response STRICTLY as a JSON object with this structure:
 }`;
 
         const response = await ai.models.generateContent({
-            model: 'gemini-3.6-flash',
+            model: 'gemini-1.5-flash',
             contents: prompt,
             config: { responseMimeType: 'application/json' }
         });
 
         const data = JSON.parse(response.text);
-
-        // Group හෝ Individual Chat එකක JID එක (උදා: ජාත්‍යන්තර අංක ආකෘතියෙන් @s.whatsapp.net)
-        // සියලුම Chats වලට යැවීමට හෝ නිශ්චිත JID එකකට යැවීමට
         console.log('MCQ Poll එක සූදානම්:', data.question);
 
-        // සටහන: මෙතනට ඔයාගේ Group ID එක හෝ Chat ID එක දාන්න පුළුවන්. 
-        // දැනට Bot ගේම අංකයට (Status/Self) හෝ පරීක්ෂා කිරීමට යවනු ලැබේ.
+        // Bot ගේම අංකයට යැවීමට (පරීක්ෂා කිරීම සඳහා)
+        const targetJid = sock.user.id.split(':')[0] + '@s.whatsapp.net'; 
+
+        // WhatsApp Poll එකක් ලෙස යැවීම
+        await sock.sendMessage(targetJid, {
+            poll: {
+                name: data.question,
+                values: data.options,
+                selectableCount: 1 // එක පිළිතුරක් පමණක් තේරීමට
+            }
+        });
+        
+        console.log('✅ Poll එක සාර්ථකව WhatsApp වෙත යැව්වා!');
+
     } catch (error) {
         console.error('MCQ යැවීමේදී දෝෂයක් ඇතිවිය:', error);
     }
