@@ -69,7 +69,7 @@ Provide the response STRICTLY as a JSON object with this structure:
         console.log('MCQ Poll එක සූදානම්:', data.question);
 
         // Bot ගේම අංකයට යැවීමට (පරීක්ෂා කිරීම සඳහා)
-        const targetJid = sock.user.id.split(':')[0] + '@s.whatsapp.net'; 
+        const targetJid = '94715477061@s.whatsapp.net'; 
 
         // WhatsApp Poll එකක් ලෙස යැවීම
         await sock.sendMessage(targetJid, {
