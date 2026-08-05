@@ -60,33 +60,18 @@ async function sendDailyPollMCQ(sock) {
     try {
         console.log('Gemini AI මඟින් 10/11 වසර පාඩම් වලින් අලුත්ම MCQ ප්‍රශ්නය සකසමින් පවතී...');
         
-        const previousQuestionsText = askedQuestions.length > 0 ? 
-            `Do NOT repeat any of these previously asked questions: ${JSON.stringify(askedQuestions)}` : '';
+       const previousQuestionsText = askedQuestions.length > 0 ? 
+            `Avoid these questions: ${JSON.stringify(askedQuestions.slice(-5))}` : '';
 
-        const prompt = `ඔබ ශ්‍රී ලංකාවේ ප්‍රමුඛ ICT ගුරුවරයෙකි. ශ්‍රී ලංකාවේ 10/11 වසර ICT විෂය නිර්දේශයට අයත් O/L විභාග මට්ටමේ අද්විතීය බහුවරණ ප්‍රශ්නයක් (MCQ 1ක්) සකස් කරන්න.
-
-        පහත සඳහන් පාඩම් 9 න් එකක් තෝරාගන්න:
-        1. තොරතුරු හා සන්නිවේදන තාක්ෂණය පිළිබඳ හැඳින්වීම
-        2. පරිගණකයේ විකාශනය
-        3. දත්ත නිරූපණය
-        4. තර්ක ද්වාර (Logic Gates)
-        5. පරිගණක මෙහෙයුම් පද්ධති (Operating Systems)
-        6. වදන් සැකසුම් (MS Word)
-        7. විද්‍යුත් පැතුරුම්පත් (MS Excel)
-        8. දත්ත සමුදාය (MS Access)
-        9. විද්‍යුත් ඉදිරිපත් කිරීම් (MS PowerPoint)
-
-        ${previousQuestionsText}
-
-        අනිවාර්ය නීති:
-        1. පෙළපොත් වල භාවිත වන නිවැරදි, පිරිසිදු සිංහල ව්‍යාකරණ භාවිත කරන්න.
-        2. Output එක පහත JSON Format එකෙන් පමණක් ලබාදෙන්න:
-        {
-            "question": "ප්‍රශ්නය මෙතැනට",
-            "options": ["පිළිතුර 1", "පිළිතුර 2", "පිළිතුර 3", "පිළිතුර 4"],
-            "correctAnswer": "නිවැරදි පිළිතුර (options වල ඇති එකක්ම විය යුතුය)",
-            "explanation": "නිවැරදි පිළිතුරට හේතුව කෙටියෙන්"
-        }`;
+        const prompt = `Act as an O/L ICT Teacher. Generate a Grade 10/11 ICT MCQ in clean Sinhala from these topics: 1.Intro, 2.Evolution, 3.Data Rep, 4.Logic Gates, 5.OS, 6.MS Word, 7.Excel, 8.Access, 9.PowerPoint.
+${previousQuestionsText}
+Return ONLY valid JSON:
+{
+  "question": "Sinhala question",
+  "options": ["ans1", "ans2", "ans3", "ans4"],
+  "correctAnswer": "exact correct option text",
+  "explanation": "short explanation in sinhala"
+}`;
 
         const response = await ai.models.generateContent({
             model: 'gemini-3.5-flash',
