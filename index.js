@@ -98,13 +98,10 @@ Return STRICTLY valid JSON format:
             askedQuestions.shift();
         }
 
-        // 📌 ඔබේ WhatsApp Group එකේ Invite Link එකේ අග කොටස මෙහි දාන්න
-       const targetJid = '120363429635141660@g.us'; // දැනට පරීක්ෂා කිරීමට ඔබේ අංකය දමා ඇත. ගෲප් JID එක මෙයට මාරු කරන්න.
-
        // 📌 ඔයාට ප්‍රශ්න යවන්න ඕන සියලුම WhatsApp Group වල JID මේ විදිහට එකතු කරන්න
         const targetGroups = [
             '120363429635141660@g.us', // 1 වන ගෲප් එක (දැන් දාලා තියෙන එක)
-            '1203634...another_id@g.us', // 2 වන ගෲප් එක (අවශ්‍ය නම් මෙතැනට දාන්න)
+            // 2 වන ගෲප් එක (අවශ්‍ය නම් මෙතැනට දාන්න)
             // '1203634...another_id@g.us' // 3 වන ගෲප් එක...
         ];
 
