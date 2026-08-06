@@ -2,6 +2,7 @@ const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = requi
 const qrcode = require('qrcode-terminal');
 const http = require('http');
 const { GoogleGenAI } = require('@google/genai');
+const cron = require('node-cron');
 
 // Render Port scan එක අසාර්ථක වීම වැළැක්වීමට HTTP Server එක
 http.createServer((req, res) => res.end('Baileys WhatsApp Bot is Running!')).listen(process.env.PORT || 3000);
@@ -29,39 +30,33 @@ async function connectToWhatsApp() {
         const { connection, lastDisconnect, qr } = update;
         
         if (qr) {
-            console.log('\n--- අලුත් QR CODE එක පහතින් ---');
+            console.log('\n--- අලුත් QR එක Scan කරන්න ---');
             qrcode.generate(qr, { small: true });
         }
 
         if (connection === 'close') {
             const shouldReconnect = (lastDisconnect.error?.output?.statusCode !== DisconnectReason.loggedOut);
-            console.log('Connection closed due to ', lastDisconnect.error, ', reconnecting ', shouldReconnect);
+            console.log('Connection closed, reconnecting...', shouldReconnect);
             if (shouldReconnect) {
                 connectToWhatsApp();
             }
         } else if (connection === 'open') {
             console.log('✅ WhatsApp Bot සර්වර් එක සමඟ සාර්ථකව සම්බන්ධ වුණා!');
-            
-            // 📌 මෙන්න මේ තැනට තමයි කේතය දාන්න ඕන
-            sock.ev.on('chats.set', ({ chats }) => {
-                for (const chat of chats) {
-                    if (chat.id.endsWith('@g.us')) {
-                        console.log(`📌 Group Name: ${chat.subject} --> JID: ${chat.id}`);
-                    }
-                }
+
+            // ⏱️ ඔබ ඉල්ලූ වෙලාවල් වලට (3PM, 6PM, 9PM, 12AM) ප්‍රශ්න යැවීම සඳහා Cron Job එක
+            cron.schedule('0 15,18,21,0 * * *', () => {
+                console.log('⏰ නියමිත වෙලාව පැමිණ ඇත. Gemini AI ප්‍රශ්නය සකසමින් පවතී...');
+                sendDailyPollMCQ(sock);
+            }, {
+                scheduled: true,
+                timezone: "Asia/Colombo"
             });
-
-            // සර්වර් එක සෙට්ල් වීමට තත්පර 10ක් දී පළමු MCQ එක යැවීම
-            setTimeout(() => {
-                sendDailyPollMCQ(sock);
-            }, 10000);
-
-            setInterval(() => {
-                sendDailyPollMCQ(sock);
-            }, 20 * 60 * 1000);
+            
+            console.log('⏰ ටයිමර් පද්ධතිය සාර්ථකව ක්‍රියාත්මකයි (3PM, 6PM, 9PM, 12AM).');
         }
     });
 
+    // 📌 ගෲප් JID ලබා ගැනීමට '!jid' විධානය
     sock.ev.on('messages.upsert', async ({ messages }) => {
         const m = messages[0];
         if (!m.message) return;
@@ -75,7 +70,7 @@ async function connectToWhatsApp() {
     });
 }
 
-// Gemini AI මඟින් MCQ ප්‍රශ්නය, පිළිතුර සහ විස්තරය සකසා Poll එකක් ලෙස යැවීමේ Function එක
+// Gemini AI මඟින් MCQ ප්‍රශ්නය සහ පිළිතුර සකසා ගෲප් ලැයිස්තුවට යැවීමේ Function එක
 async function sendDailyPollMCQ(sock) {
     try {
         console.log('Gemini AI මඟින් 10/11 වසර පාඩම් වලින් අලුත්ම MCQ ප්‍රශ්නය සකසමින් පවතී...');
@@ -84,28 +79,28 @@ async function sendDailyPollMCQ(sock) {
             `Avoid these recent questions: ${JSON.stringify(askedQuestions.slice(-5))}` : '';
 
         const prompt = `You are a strict Sri Lankan GCE O/L ICT teacher. Your task is to generate ONE multiple-choice question (MCQ) in clean Sinhala.
-			CRITICAL RULE: The question MUST strictly belong ONLY to the official Sri Lankan GCE O/L ICT syllabus (Only Grade 10). DO NOT include any Advanced Level (A/L) concepts, programming languages like Python/Java, or complex topics not found in the official textbooks.
+CRITICAL RULE: The question MUST strictly belong ONLY to the official Sri Lankan GCE O/L ICT syllabus (Only Grade 10). DO NOT include any Advanced Level (A/L) concepts, programming languages like Python/Java, or complex topics not found in the official textbooks.
 
-			Select the question strictly from one of these allowed areas:
-			1. Introduction to ICT & Data/Information
-			2. Evolution of computers (Generations, History)
-			3. Data representation (Binary, ASCII, Unicode)
-			4. Logic gates (AND, OR, NOT, Truth tables)
-			5. Operating systems (Functions, File management)
-			6. Word processing (MS Word basics)
-			7. Spreadsheets (MS Excel formulas, functions)
-			8. Databases (MS Access tables, fields, types)
-			9. Presentations (MS PowerPoint basics)
+Select the question strictly from one of these allowed areas:
+1. Introduction to ICT & Data/Information
+2. Evolution of computers (Generations, History)
+3. Data representation (Binary, ASCII, Unicode)
+4. Logic gates (AND, OR, NOT, Truth tables)
+5. Operating systems (Functions, File management)
+6. Word processing (MS Word basics)
+7. Spreadsheets (MS Excel formulas, functions)
+8. Databases (MS Access tables, fields, types)
+9. Presentations (MS PowerPoint basics)
 
-			${previousQuestionsText}
+${previousQuestionsText}
 
-			Return STRICTLY in this JSON format:
-			{
-			"question": "Sinhala question text (Grade 10/11 O/L level only)",
-			"options": ["ans1", "ans2", "ans3", "ans4"],
-			"correctAnswer": "exact correct option text",
-			"explanation": "short explanation in sinhala"
-			}`;
+Return STRICTLY in this JSON format:
+{
+  "question": "Sinhala question text (Grade 10/11 O/L level only)",
+  "options": ["ans1", "ans2", "ans3", "ans4"],
+  "correctAnswer": "exact correct option text",
+  "explanation": "short explanation in sinhala"
+}`;
 
         const response = await ai.models.generateContent({
             model: 'gemini-3.6-flash',
@@ -118,29 +113,27 @@ async function sendDailyPollMCQ(sock) {
 
         const data = JSON.parse(response.text);
 
-        // එකම ප්‍රශ්නය නැවත ඒම වැළැක්වීමට ලැයිස්තුවට එකතු කිරීම
         askedQuestions.push(data.question);
         if (askedQuestions.length > 20) {
             askedQuestions.shift();
         }
 
-       // 📌 ඔයාට ප්‍රශ්න යවන්න ඕන සියලුම WhatsApp Group වල JID මේ විදිහට එකතු කරන්න
+        // 📌 මෙහි ඔබ ප්‍රශ්න යැවීමට අවශ්‍ය සියලුම WhatsApp Group වල JIDස් එකතු කරන්න
         const targetGroups = [
-            '120363429635141660@g.us', // 1 වන ගෲප් එක (දැන් දාලා තියෙන එක)
-            // 2 වන ගෲප් එක (අවශ්‍ය නම් මෙතැනට දාන්න)
-            // '1203634...another_id@g.us' // 3 වන ගෲප් එක...
+            '120363429635141660@g.us', // My Group
+            '120363405905961234@g.us', //2027 Gonadeniya
+			'120363422669823543@g.us', //2027 Akshara
+			'120363404399183574@g.us', //2027 Nasa
+			'120363046104457178@g.us', //2027 Hayasko
         ];
 
-        // සියලුම ගෲප් වෙත එකින් එක පණිවිඩ යැවීම
+        // ලැයිස්තුවේ ඇති සියලුම ගෲප් වෙත එකින් එක පණිවිඩ යැවීම
         for (const targetJid of targetGroups) {
-            
-            // 1. කලින් ප්‍රශ්නයක් තිබුණා නම්, අලුත් ප්‍රශ්නයට පෙර එහි නිවැරදි පිළිතුර සහ විස්තරය යැවීම
             if (lastQuestionExplanation) {
                 const answerText = `💡 *පසුගිය ප්‍රශ්නේ නිවැරදි පිළිතුර සහ විස්තරය:* \n\n✅ *හරි පිළිතුර:* ${lastQuestionExplanation.correctAnswer}\n📖 *පැහැදිලි කිරීම:* ${lastQuestionExplanation.explanation}`;
                 await sock.sendMessage(targetJid, { text: answerText });
             }
 
-            // 2. අලුත් MCQ Poll එක ගෲප් වෙත යැවීම
             await sock.sendMessage(targetJid, {
                 poll: {
                     name: data.question,
@@ -148,12 +141,9 @@ async function sendDailyPollMCQ(sock) {
                     selectableCount: 1
                 }
             });
-        
-            
-            console.log('✅ ගෲප් වෙත අලුත් MCQ Poll එක සහ පිළිතුර සාර්ථකව යැව්වා!');
         }
-            
         
+        console.log('✅ සියලුම ගෲප් වෙත අලුත් MCQ Poll එක සහ පිළිතුර සාර්ථකව යැව්වා!');
 
         lastQuestionExplanation = {
             correctAnswer: data.correctAnswer,
