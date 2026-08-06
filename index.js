@@ -83,15 +83,29 @@ async function sendDailyPollMCQ(sock) {
         const previousQuestionsText = askedQuestions.length > 0 ? 
             `Avoid these recent questions: ${JSON.stringify(askedQuestions.slice(-5))}` : '';
 
-        const prompt = `Act as an expert O/L ICT Teacher in Sri Lanka. Generate ONE unique MCQ in clean Sinhala based on Grade 10 or 11 ICT syllabus from these topics: 1.Intro, 2.Evolution, 3.Data Rep, 4.Logic Gates, 5.OS, 6.MS Word, 7.Excel, 8.Access, 9.PowerPoint.
-${previousQuestionsText}
-Return STRICTLY valid JSON format:
-{
-  "question": "Sinhala question text",
-  "options": ["ans1", "ans2", "ans3", "ans4"],
-  "correctAnswer": "exact correct option text",
-  "explanation": "short explanation in sinhala"
-}`;
+        const prompt = `You are a strict Sri Lankan GCE O/L ICT teacher. Your task is to generate ONE multiple-choice question (MCQ) in clean Sinhala.
+			CRITICAL RULE: The question MUST strictly belong ONLY to the official Sri Lankan GCE O/L ICT syllabus (Only Grade 10). DO NOT include any Advanced Level (A/L) concepts, programming languages like Python/Java, or complex topics not found in the official textbooks.
+
+			Select the question strictly from one of these allowed areas:
+			1. Introduction to ICT & Data/Information
+			2. Evolution of computers (Generations, History)
+			3. Data representation (Binary, ASCII, Unicode)
+			4. Logic gates (AND, OR, NOT, Truth tables)
+			5. Operating systems (Functions, File management)
+			6. Word processing (MS Word basics)
+			7. Spreadsheets (MS Excel formulas, functions)
+			8. Databases (MS Access tables, fields, types)
+			9. Presentations (MS PowerPoint basics)
+
+			${previousQuestionsText}
+
+			Return STRICTLY in this JSON format:
+			{
+			"question": "Sinhala question text (Grade 10/11 O/L level only)",
+			"options": ["ans1", "ans2", "ans3", "ans4"],
+			"correctAnswer": "exact correct option text",
+			"explanation": "short explanation in sinhala"
+			}`;
 
         const response = await ai.models.generateContent({
             model: 'gemini-3.6-flash',
