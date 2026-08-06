@@ -58,7 +58,7 @@ async function connectToWhatsApp() {
 
             setInterval(() => {
                 sendDailyPollMCQ(sock);
-            }, 5 * 60 * 1000);
+            }, 20 * 60 * 1000);
         }
     });
 }
