@@ -61,6 +61,18 @@ async function connectToWhatsApp() {
             }, 20 * 60 * 1000);
         }
     });
+
+    sock.ev.on('messages.upsert', async ({ messages }) => {
+        const m = messages[0];
+        if (!m.message) return;
+        
+        const messageText = m.message.conversation || m.message.extendedTextMessage?.text;
+        const chatJid = m.key.remoteJid;
+
+        if (messageText === '!jid') {
+            await sock.sendMessage(chatJid, { text: `📌 මෙම චැට් එකේ JID එක මෙන්න:\n\n\`${chatJid}\`` });
+        }
+    });
 }
 
 // Gemini AI මඟින් MCQ ප්‍රශ්නය, පිළිතුර සහ විස්තරය සකසා Poll එකක් ලෙස යැවීමේ Function එක
