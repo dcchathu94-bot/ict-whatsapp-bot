@@ -40,17 +40,25 @@ async function connectToWhatsApp() {
                 connectToWhatsApp();
             }
         } else if (connection === 'open') {
-            console.log('✅ Baileys WhatsApp Bot සර්වර් එක සමඟ සාර්ථකව සම්බන්ධ වුණා!');
+            console.log('✅ WhatsApp Bot සර්වර් එක සමඟ සාර්ථකව සම්බන්ධ වුණා!');
             
+            // 📌 මෙන්න මේ තැනට තමයි කේතය දාන්න ඕන
+            sock.ev.on('chats.set', ({ chats }) => {
+                for (const chat of chats) {
+                    if (chat.id.endsWith('@g.us')) {
+                        console.log(`📌 Group Name: ${chat.subject} --> JID: ${chat.id}`);
+                    }
+                }
+            });
+
             // සර්වර් එක සෙට්ල් වීමට තත්පර 10ක් දී පළමු MCQ එක යැවීම
             setTimeout(() => {
                 sendDailyPollMCQ(sock);
             }, 10000);
 
-            // ⏱️ විනාඩි 5කට වරක් ප්‍රශ්න යැවීම (අලුත් Key එක නිසා දැන් අවුලක් නැත)
             setInterval(() => {
                 sendDailyPollMCQ(sock);
-            }, 60 * 60 * 1000);
+            }, 5 * 60 * 1000);
         }
     });
 }
