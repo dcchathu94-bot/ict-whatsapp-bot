@@ -101,7 +101,16 @@ Return STRICTLY valid JSON format:
         // 📌 ඔබේ WhatsApp Group එකේ Invite Link එකේ අග කොටස මෙහි දාන්න
        const targetJid = '120363429635141660@g.us'; // දැනට පරීක්ෂා කිරීමට ඔබේ අංකය දමා ඇත. ගෲප් JID එක මෙයට මාරු කරන්න.
 
-        if (targetJid) {
+       // 📌 ඔයාට ප්‍රශ්න යවන්න ඕන සියලුම WhatsApp Group වල JID මේ විදිහට එකතු කරන්න
+        const targetGroups = [
+            '120363429635141660@g.us', // 1 වන ගෲප් එක (දැන් දාලා තියෙන එක)
+            '1203634...another_id@g.us', // 2 වන ගෲප් එක (අවශ්‍ය නම් මෙතැනට දාන්න)
+            // '1203634...another_id@g.us' // 3 වන ගෲප් එක...
+        ];
+
+        // සියලුම ගෲප් වෙත එකින් එක පණිවිඩ යැවීම
+        for (const targetJid of targetGroups) {
+            
             // 1. කලින් ප්‍රශ්නයක් තිබුණා නම්, අලුත් ප්‍රශ්නයට පෙර එහි නිවැරදි පිළිතුර සහ විස්තරය යැවීම
             if (lastQuestionExplanation) {
                 const answerText = `💡 *පසුගිය ප්‍රශ්නේ නිවැරදි පිළිතුර සහ විස්තරය:* \n\n✅ *හරි පිළිතුර:* ${lastQuestionExplanation.correctAnswer}\n📖 *පැහැදිලි කිරීම:* ${lastQuestionExplanation.explanation}`;
@@ -116,6 +125,7 @@ Return STRICTLY valid JSON format:
                     selectableCount: 1
                 }
             });
+        }
             
             console.log('✅ ගෲප් වෙත අලුත් MCQ Poll එක සහ පිළිතුර සාර්ථකව යැව්වා!');
         }
