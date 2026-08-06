@@ -1,14 +1,10 @@
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
 const qrcode = require('qrcode-terminal');
 const http = require('http');
-const { GoogleGenAI } = require('@google/genai');
 const cron = require('node-cron');
 
 // Render Port scan එක අසාර්ථක වීම වැළැක්වීමට HTTP Server එක
 http.createServer((req, res) => res.end('Baileys WhatsApp Bot is Running!')).listen(process.env.PORT || 3000);
-
-// Gemini AI Setup
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 // කලින් දුන් ප්‍රශ්නේ උත්තරය සහ විස්තරය මතක තබා ගැනීමට Variable එකක්
 let lastQuestionExplanation = null;
@@ -43,7 +39,7 @@ async function connectToWhatsApp() {
         } else if (connection === 'open') {
             console.log('✅ WhatsApp Bot සර්වර් එක සමඟ සාර්ථකව සම්බන්ධ වුණා!');
 
-            // ⏱️ ඔබ ඉල්ලූ වෙලාවල් වලට (3PM, 6PM, 9PM, 12AM) ප්‍රශ්න යැවීම සඳහා Cron Job එක
+            // ⏱️ 3PM, 6PM, 9PM, 12AM ට ප්‍රශ්න යැවීම (Cron Job)
             cron.schedule('0 15,18,21,0 * * *', () => {
                 console.log('⏰ නියමිත වෙලාව පැමිණ ඇත. Gemini AI ප්‍රශ්නය සකසමින් පවතී...');
                 sendDailyPollMCQ(sock);
@@ -70,16 +66,16 @@ async function connectToWhatsApp() {
     });
 }
 
-// Gemini AI මඟින් MCQ ප්‍රශ්නය සහ පිළිතුර සකසා ගෲප් ලැයිස්තුවට යැවීමේ Function එක
-async function sendDailyPollMCQ(sock) {
-    try {
-        console.log('Gemini AI මඟින් 10/11 වසර පාඩම් වලින් අලුත්ම MCQ ප්‍රශ්නය සකසමින් පවතී...');
-        
-        const previousQuestionsText = askedQuestions.length > 0 ? 
-            `Avoid these recent questions: ${JSON.stringify(askedQuestions.slice(-5))}` : '';
+// Native Fetch හරහා Gemini API එකෙන් MCQ ප්‍රශ්නය ලබා ගැනීම
+async function generateMCQFromGemini() {
+    const apiKey = process.env.GEMINI_API_KEY;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
-        const prompt = `You are a strict Sri Lankan GCE O/L ICT teacher. Your task is to generate ONE multiple-choice question (MCQ) in clean Sinhala.
-CRITICAL RULE: The question MUST strictly belong ONLY to the official Sri Lankan GCE O/L ICT syllabus (Only Grade 10). DO NOT include any Advanced Level (A/L) concepts, programming languages like Python/Java, or complex topics not found in the official textbooks.
+    const previousQuestionsText = askedQuestions.length > 0 ? 
+        `Avoid these recent questions: ${JSON.stringify(askedQuestions.slice(-5))}` : '';
+
+    const promptText = `You are a strict Sri Lankan GCE O/L ICT teacher. Your task is to generate ONE multiple-choice question (MCQ) in clean Sinhala.
+CRITICAL RULE: The question MUST strictly belong ONLY to the official Sri Lankan GCE O/L ICT syllabus (Grade 10 Only). DO NOT include any Advanced Level (A/L) concepts, programming languages like Python/Java, or complex topics not found in the official textbooks.
 
 Select the question strictly from one of these allowed areas:
 1. Introduction to ICT & Data/Information
@@ -94,7 +90,7 @@ Select the question strictly from one of these allowed areas:
 
 ${previousQuestionsText}
 
-Return STRICTLY in this JSON format:
+Return STRICTLY in this JSON format (no markdown blocks around it, just raw JSON):
 {
   "question": "Sinhala question text (Grade 10/11 O/L level only)",
   "options": ["ans1", "ans2", "ans3", "ans4"],
@@ -102,23 +98,40 @@ Return STRICTLY in this JSON format:
   "explanation": "short explanation in sinhala"
 }`;
 
-        const response = await ai.models.generateContent({
-            model: 'gemini-3.6-flash',
-            contents: prompt,
-            config: { 
-                responseMimeType: "application/json",
-                temperature: 0.3 
-            }
-        });
+    const requestBody = {
+        contents: [{
+            parts: [{ text: promptText }]
+        }],
+        generationConfig: {
+            responseMimeType: "application/json",
+            temperature: 0.3
+        }
+    };
 
-        const data = JSON.parse(response.text);
+    const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody)
+    });
+
+    const result = await response.json();
+    const rawJSON = result.candidates[0].content.parts[0].text;
+    return JSON.parse(rawJSON);
+}
+
+// ගෲප් ලැයිස්තුවට Poll එක යැවීමේ Function එක
+async function sendDailyPollMCQ(sock) {
+    try {
+        console.log('Gemini AI මඟින් 10/11 වසර පාඩම් වලින් අලුත්ම MCQ ප්‍රශ්නය සකසමින් පවතී...');
+        
+        const data = await generateMCQFromGemini();
 
         askedQuestions.push(data.question);
         if (askedQuestions.length > 20) {
             askedQuestions.shift();
         }
 
-        // 📌 මෙහි ඔබ ප්‍රශ්න යැවීමට අවශ්‍ය සියලුම WhatsApp Group වල JIDස් එකතු කරන්න
+        // 📌 ඔබ ප්‍රශ්න යැවීමට අවශ්‍ය WhatsApp Group වල JIDස් මෙහි දාන්න
         const targetGroups = [
             '120363429635141660@g.us', // My Group
             '120363405905961234@g.us', //2027 Gonadeniya
@@ -127,7 +140,6 @@ Return STRICTLY in this JSON format:
 			'120363046104457178@g.us', //2027 Hayasko
         ];
 
-        // ලැයිස්තුවේ ඇති සියලුම ගෲප් වෙත එකින් එක පණිවිඩ යැවීම
         for (const targetJid of targetGroups) {
             if (lastQuestionExplanation) {
                 const answerText = `💡 *පසුගිය ප්‍රශ්නේ නිවැරදි පිළිතුර සහ විස්තරය:* \n\n✅ *හරි පිළිතුර:* ${lastQuestionExplanation.correctAnswer}\n📖 *පැහැදිලි කිරීම:* ${lastQuestionExplanation.explanation}`;
