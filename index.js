@@ -1,3 +1,4 @@
+require('dotenv').config();
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
 const qrcode = require('qrcode-terminal');
 const http = require('http');
@@ -6,10 +7,7 @@ const cron = require('node-cron');
 // Render Port scan එක අසාර්ථක වීම වැළැක්වීමට HTTP Server එක
 http.createServer((req, res) => res.end('Baileys WhatsApp Bot is Running!')).listen(process.env.PORT || 3000);
 
-// කලින් දුන් ප්‍රශ්නේ උත්තරය සහ විස්තරය මතක තබා ගැනීමට Variable එකක්
 let lastQuestionExplanation = null;
-
-// එකම ප්‍රශ්නය නැවත ඒම වැළැක්වීමට ලැයිස්තුවක්
 let askedQuestions = [];
 
 async function connectToWhatsApp() {
@@ -39,6 +37,12 @@ async function connectToWhatsApp() {
         } else if (connection === 'open') {
             console.log('✅ WhatsApp Bot සර්වර් එක සමඟ සාර්ථකව සම්බන්ධ වුණා!');
 
+            // 🚀 බෝට් කනෙක්ට් වී තත්පර 5කින් පරීක්ෂණාත්මකව පළමු Poll එක යැවීම
+            setTimeout(() => {
+                console.log('🚀 බෝට් රන් වූ වගෙන්ම පළමු Poll ප්‍රශ්නය යවමින්...');
+                sendDailyPollMCQ(sock);
+            }, 5000);
+
             // ⏱️ 3PM, 6PM, 9PM, 12AM ට ප්‍රශ්න යැවීම (Cron Job)
             cron.schedule('0 15,18,21,0 * * *', () => {
                 console.log('⏰ නියමිත වෙලාව පැමිණ ඇත. Gemini AI ප්‍රශ්නය සකසමින් පවතී...');
@@ -66,12 +70,12 @@ async function connectToWhatsApp() {
     });
 }
 
-// Native Fetch හරහා Gemini API එකෙන් MCQ ප්‍රශ්නය ලබා ගැනීම
+// Native Fetch හරහා Gemini API එකෙන් MCQ ප්‍රශ්නය ආරක්ෂිතව ලබා ගැනීම
 async function generateMCQFromGemini() {
     const apiKey = process.env.GEMINI_API_KEY;
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
 
-    const previousQuestionsText = askedQuestions.length > 0 ? 
+    const previousQuestionsText = askedQuestions.length > 0 ?  
         `Avoid these recent questions: ${JSON.stringify(askedQuestions.slice(-5))}` : '';
 
     const promptText = `You are a strict Sri Lankan GCE O/L ICT teacher. Your task is to generate ONE multiple-choice question (MCQ) in clean Sinhala.
@@ -115,8 +119,17 @@ Return STRICTLY in this JSON format (no markdown blocks around it, just raw JSON
     });
 
     const result = await response.json();
+
+    // 🛡️ Safe check: API එකෙන් නිවැරදිව ප්‍රතිචාරයක් ලැබී ඇත්දැයි පරීක්ෂා කිරීම
+    if (!result.candidates || !result.candidates[0]?.content?.parts?.[0]?.text) {
+        console.error('Gemini API දත්ත දෝෂයක්:', JSON.stringify(result));
+        throw new Error('Gemini API response structure is invalid or empty');
+    }
+
     const rawJSON = result.candidates[0].content.parts[0].text;
-    return JSON.parse(rawJSON);
+    const cleanedJSON = rawJSON.replace(/```json/g, '').replace(/```/g, '').trim();
+    
+    return JSON.parse(cleanedJSON);
 }
 
 // ගෲප් ලැයිස්තුවට Poll එක යැවීමේ Function එක
@@ -134,10 +147,10 @@ async function sendDailyPollMCQ(sock) {
         // 📌 ඔබ ප්‍රශ්න යැවීමට අවශ්‍ය WhatsApp Group වල JIDස් මෙහි දාන්න
         const targetGroups = [
             '120363429635141660@g.us', // My Group
-            '120363405905961234@g.us', //2027 Gonadeniya
-			'120363422669823543@g.us', //2027 Akshara
-			'120363404399183574@g.us', //2027 Nasa
-			'120363046104457178@g.us', //2027 Hayasko
+            '120363405905961234@g.us', // 2027 Gonadeniya
+            '120363422669823543@g.us', // 2027 Akshara
+            '120363404399183574@g.us', // 2027 Nasa
+            '120363046104457178@g.us', // 2027 Hayasko
         ];
 
         for (const targetJid of targetGroups) {
