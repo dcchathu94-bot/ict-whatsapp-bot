@@ -122,7 +122,7 @@ Return STRICTLY valid JSON format:
                     selectableCount: 1
                 }
             });
-        }
+        
             
             console.log('✅ ගෲප් වෙත අලුත් MCQ Poll එක සහ පිළිතුර සාර්ථකව යැව්වා!');
         }
