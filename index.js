@@ -50,7 +50,7 @@ async function connectToWhatsApp() {
             // ⏱️ විනාඩි 5කට වරක් ප්‍රශ්න යැවීම (අලුත් Key එක නිසා දැන් අවුලක් නැත)
             setInterval(() => {
                 sendDailyPollMCQ(sock);
-            }, 5 * 60 * 1000);
+            }, 60 * 60 * 1000);
         }
     });
 }
