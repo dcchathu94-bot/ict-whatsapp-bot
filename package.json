@@ -7,8 +7,9 @@
     "start": "node index.js"
   },
   "dependencies": {
-    "@whiskeysockets/baileys": "^6.7.8",
-    "@google/genai": "latest",
+    "@whiskeysockets/baileys": "^6.7.13",
+    "@google/genai": "^0.1.1",
+    "node-cron": "^3.0.3",
     "qrcode-terminal": "^0.12.0"
   }
 }
