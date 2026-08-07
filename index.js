@@ -8,8 +8,9 @@ const fs = require('fs');
 // Render / Cloud Server Port scan එක අසාර්ථක වීම වැළැක්වීමට HTTP Server එක
 http.createServer((req, res) => res.end('Baileys WhatsApp Bot is Running!')).listen(process.env.PORT || 3000);
 
-// 📁 Persistent Data Storage (සර්වර් එක රීස්ටාර්ට් වුණත් ඩේටා නොමැකී තබා ගැනීමට)
+// 📁 Persistent Data Storage
 const STORE_FILE = './store.json';
+const HISTORY_FILE = './mcq_history.txt';
 
 function loadStore() {
     try {
@@ -31,7 +32,29 @@ function saveStore(data) {
     }
 }
 
-let cronStarted = false; // Cron job එක ඩබල් වීම වැළැක්වීමට Flag එකක්
+// 📖 සියලුම ප්‍රශ්න Permanent History File එකට සේව් කිරීමේ Function එක
+function appendToHistory(data) {
+    try {
+        const timeString = new Date().toLocaleString('en-US', { timeZone: 'Asia/Colombo' });
+        const entry = `==================================================\n` +
+                      `📅 දිනය සහ වේලාව: ${timeString}\n` +
+                      `❓ ප්‍රශ්නය: ${data.question}\n` +
+                      `1. ${data.options[0]}\n` +
+                      `2. ${data.options[1]}\n` +
+                      `3. ${data.options[2]}\n` +
+                      `4. ${data.options[3]}\n\n` +
+                      `✅ නිවැරදි පිළිතුර: ${data.correctAnswer}\n` +
+                      `📖 පැහැදිලි කිරීම: ${data.explanation}\n` +
+                      `==================================================\n\n`;
+
+        fs.appendFileSync(HISTORY_FILE, entry, 'utf8');
+        console.log('💾 ප්‍රශ්නය history file එකට සේව් වුණා!');
+    } catch (e) {
+        console.error('History Save Error:', e.message);
+    }
+}
+
+let cronStarted = false; // Cron job එක duplicate වීම වැළැක්වීමට
 
 async function connectToWhatsApp() {
     const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
@@ -60,7 +83,6 @@ async function connectToWhatsApp() {
         } else if (connection === 'open') {
             console.log('✅ WhatsApp Bot සර්වර් එක සමඟ සාර්ථකව සම්බන්ධ වුණා!');
             
-            // ⏱️ Cron Job එක එක පාරක් පමණක් Initialize කිරීම (Auto-reconnect වලදී duplicate වීම වළක්වයි)
             if (!cronStarted) {
                 cronStarted = true;
                 cron.schedule('0 15,18,21,0 * * *', () => {
@@ -76,7 +98,7 @@ async function connectToWhatsApp() {
         }
     });
 
-    // 📌 ගෲප් JID ලබා ගැනීමට '!jid' විධානය
+    // 📌 Commands සඳහා Message Listener (!jid සහ !history)
     sock.ev.on('messages.upsert', async ({ messages }) => {
         const m = messages[0];
         if (!m.message) return;
@@ -84,8 +106,23 @@ async function connectToWhatsApp() {
         const messageText = m.message.conversation || m.message.extendedTextMessage?.text;
         const chatJid = m.key.remoteJid;
 
+        // Group/Chat JID එක ලබා ගැනීමට
         if (messageText === '!jid') {
             await sock.sendMessage(chatJid, { text: `📌 මෙම චැට් එකේ JID එක මෙන්න:\n\n\`${chatJid}\`` });
+        }
+
+        // 📚 මෙතෙක් සේව් වුණු සියලුම MCQ ප්‍රශ්න එකතුව Document එකක් ලෙස ලබා ගැනීමට
+        if (messageText === '!history') {
+            if (fs.existsSync(HISTORY_FILE)) {
+                await sock.sendMessage(chatJid, {
+                    document: { url: HISTORY_FILE },
+                    mimetype: 'text/plain',
+                    fileName: 'ICT_O_L_MCQ_History.txt',
+                    caption: '📚 මෙතෙක් යවන ලද සියලුම ICT MCQ ප්‍රශ්න සහ පිළිතුරු එකතුව මෙන්න!'
+                });
+            } else {
+                await sock.sendMessage(chatJid, { text: '⚠️ තවමත් කිසිදු ප්‍රශ්නයක් History එකට සේව් වී නොමැත.' });
+            }
         }
     });
 }
@@ -152,7 +189,7 @@ Return STRICTLY in this JSON format (no markdown blocks around it, just raw JSON
     return JSON.parse(cleanedJSON);
 }
 
-// ගෲප් ලැයිස්තුවට Poll එක යැවීමේ Function එක (Retry limits සමඟ)
+// ගෲප් ලැයිස්තුවට Poll එක යැවීමේ Function එක
 async function sendDailyPollMCQ(sock, retryCount = 0) {
     const MAX_RETRIES = 3;
     
@@ -190,10 +227,13 @@ async function sendDailyPollMCQ(sock, retryCount = 0) {
         
         console.log('✅ සියලුම ගෲප් වෙත අලුත් MCQ Poll එක සහ පිළිතුර සාර්ථකව යැව්වා!');
 
-        // 💾 අලුත් ඩේටා persistent storage (store.json) එකට සේව් කිරීම
+        // 💾 1. Permanent History File (mcq_history.txt) එකට එකතු කිරීම
+        appendToHistory(data);
+
+        // 💾 2. Recent State storage (store.json) එකට සේව් කිරීම
         store.askedQuestions.push(data.question);
         if (store.askedQuestions.length > 20) {
-            store.askedQuestions.shift(); // පරණම ප්‍රශ්න අයින් කිරීම
+            store.askedQuestions.shift();
         }
 
         store.lastQuestionExplanation = {
