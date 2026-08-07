@@ -36,13 +36,7 @@ async function connectToWhatsApp() {
             }
         } else if (connection === 'open') {
             console.log('✅ WhatsApp Bot සර්වර් එක සමඟ සාර්ථකව සම්බන්ධ වුණා!');
-
-            // 🚀 බෝට් කනෙක්ට් වී තත්පර 5කින් පරීක්ෂණාත්මකව පළමු Poll එක යැවීම
-            setTimeout(() => {
-                console.log('🚀 බෝට් රන් වූ වගෙන්ම පළමු Poll ප්‍රශ්නය යවමින්...');
-                sendDailyPollMCQ(sock);
-            }, 5000);
-
+            
             // ⏱️ 3PM, 6PM, 9PM, 12AM ට ප්‍රශ්න යැවීම (Cron Job)
             cron.schedule('0 15,18,21,0 * * *', () => {
                 console.log('⏰ නියමිත වෙලාව පැමිණ ඇත. Gemini AI ප්‍රශ්නය සකසමින් පවතී...');
