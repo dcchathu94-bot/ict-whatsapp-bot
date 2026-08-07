@@ -135,7 +135,7 @@ async function connectToWhatsApp() {
 // Native Fetch හරහා Gemini API එකෙන් MCQ ප්‍රශ්නය ලබා ගැනීම
 async function generateMCQFromGemini() {
     const apiKey = process.env.GEMINI_API_KEY;
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
 
     const store = loadStore();
     const previousQuestionsText = store.askedQuestions.length > 0 ?  
