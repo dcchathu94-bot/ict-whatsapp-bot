@@ -3,12 +3,35 @@ const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = requi
 const qrcode = require('qrcode-terminal');
 const http = require('http');
 const cron = require('node-cron');
+const fs = require('fs');
 
-// Render Port scan එක අසාර්ථක වීම වැළැක්වීමට HTTP Server එක
+// Render / Cloud Server Port scan එක අසාර්ථක වීම වැළැක්වීමට HTTP Server එක
 http.createServer((req, res) => res.end('Baileys WhatsApp Bot is Running!')).listen(process.env.PORT || 3000);
 
-let lastQuestionExplanation = null;
-let askedQuestions = [];
+// 📁 Persistent Data Storage (සර්වර් එක රීස්ටාර්ට් වුණත් ඩේටා නොමැකී තබා ගැනීමට)
+const STORE_FILE = './store.json';
+
+function loadStore() {
+    try {
+        if (fs.existsSync(STORE_FILE)) {
+            const raw = fs.readFileSync(STORE_FILE, 'utf8');
+            return JSON.parse(raw);
+        }
+    } catch (e) {
+        console.error('Store Load Error:', e.message);
+    }
+    return { lastQuestionExplanation: null, askedQuestions: [] };
+}
+
+function saveStore(data) {
+    try {
+        fs.writeFileSync(STORE_FILE, JSON.stringify(data, null, 2), 'utf8');
+    } catch (e) {
+        console.error('Store Save Error:', e.message);
+    }
+}
+
+let cronStarted = false; // Cron job එක ඩබල් වීම වැළැක්වීමට Flag එකක්
 
 async function connectToWhatsApp() {
     const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
@@ -37,16 +60,19 @@ async function connectToWhatsApp() {
         } else if (connection === 'open') {
             console.log('✅ WhatsApp Bot සර්වර් එක සමඟ සාර්ථකව සම්බන්ධ වුණා!');
             
-            // ⏱️ 3PM, 6PM, 9PM, 12AM ට ප්‍රශ්න යැවීම (Cron Job)
-            cron.schedule('0 15,18,21,0 * * *', () => {
-                console.log('⏰ නියමිත වෙලාව පැමිණ ඇත. Gemini AI ප්‍රශ්නය සකසමින් පවතී...');
-                sendDailyPollMCQ(sock);
-            }, {
-                scheduled: true,
-                timezone: "Asia/Colombo"
-            });
-            
-            console.log('⏰ ටයිමර් පද්ධතිය සාර්ථකව ක්‍රියාත්මකයි (3PM, 6PM, 9PM, 12AM).');
+            // ⏱️ Cron Job එක එක පාරක් පමණක් Initialize කිරීම (Auto-reconnect වලදී duplicate වීම වළක්වයි)
+            if (!cronStarted) {
+                cronStarted = true;
+                cron.schedule('0 15,18,21,0 * * *', () => {
+                    console.log('⏰ නියමිත වෙලාව පැමිණ ඇත. Gemini AI ප්‍රශ්නය සකසමින් පවතී...');
+                    sendDailyPollMCQ(sock);
+                }, {
+                    scheduled: true,
+                    timezone: "Asia/Colombo"
+                });
+                
+                console.log('⏰ ටයිමර් පද්ධතිය සාර්ථකව ක්‍රියාත්මකයි (3PM, 6PM, 9PM, 12AM).');
+            }
         }
     });
 
@@ -64,13 +90,14 @@ async function connectToWhatsApp() {
     });
 }
 
-// Native Fetch හරහා Gemini API එකෙන් MCQ ප්‍රශ්නය ආරක්ෂිතව ලබා ගැනීම
+// Native Fetch හරහා Gemini API එකෙන් MCQ ප්‍රශ්නය ලබා ගැනීම
 async function generateMCQFromGemini() {
     const apiKey = process.env.GEMINI_API_KEY;
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
 
-    const previousQuestionsText = askedQuestions.length > 0 ?  
-        `Avoid these recent questions: ${JSON.stringify(askedQuestions.slice(-5))}` : '';
+    const store = loadStore();
+    const previousQuestionsText = store.askedQuestions.length > 0 ?  
+        `Avoid these recent questions: ${JSON.stringify(store.askedQuestions.slice(-5))}` : '';
 
     const promptText = `You are a strict Sri Lankan GCE O/L ICT teacher. Your task is to generate ONE multiple-choice question (MCQ) in clean Sinhala.
 CRITICAL RULE: The question MUST strictly belong ONLY to the official Sri Lankan GCE O/L ICT syllabus (Grade 10 Only). DO NOT include any Advanced Level (A/L) concepts, programming languages like Python/Java, or complex topics not found in the official textbooks.
@@ -90,7 +117,7 @@ ${previousQuestionsText}
 
 Return STRICTLY in this JSON format (no markdown blocks around it, just raw JSON):
 {
-  "question": "Sinhala question text (Grade 10/11 O/L level only)",
+  "question": "Sinhala question text (Grade 10 O/L level only)",
   "options": ["ans1", "ans2", "ans3", "ans4"],
   "correctAnswer": "exact correct option text",
   "explanation": "short explanation in sinhala"
@@ -114,7 +141,6 @@ Return STRICTLY in this JSON format (no markdown blocks around it, just raw JSON
 
     const result = await response.json();
 
-    // 🛡️ Safe check: API එකෙන් නිවැරදිව ප්‍රතිචාරයක් ලැබී ඇත්දැයි පරීක්ෂා කිරීම
     if (!result.candidates || !result.candidates[0]?.content?.parts?.[0]?.text) {
         console.error('Gemini API දත්ත දෝෂයක්:', JSON.stringify(result));
         throw new Error('Gemini API response structure is invalid or empty');
@@ -126,19 +152,17 @@ Return STRICTLY in this JSON format (no markdown blocks around it, just raw JSON
     return JSON.parse(cleanedJSON);
 }
 
-// ගෲප් ලැයිස්තුවට Poll එක යැවීමේ Function එක
-async function sendDailyPollMCQ(sock) {
+// ගෲප් ලැයිස්තුවට Poll එක යැවීමේ Function එක (Retry limits සමඟ)
+async function sendDailyPollMCQ(sock, retryCount = 0) {
+    const MAX_RETRIES = 3;
+    
     try {
-        console.log('Gemini AI මඟින් 10/11 වසර පාඩම් වලින් අලුත්ම MCQ ප්‍රශ්නය සකසමින් පවතී...');
+        console.log('Gemini AI මඟින් 10 වසර පාඩම් වලින් අලුත්ම MCQ ප්‍රශ්නය සකසමින් පවතී...');
         
         const data = await generateMCQFromGemini();
+        const store = loadStore();
 
-        askedQuestions.push(data.question);
-        if (askedQuestions.length > 20) {
-            askedQuestions.shift();
-        }
-
-        // 📌 ඔබ ප්‍රශ්න යැවීමට අවශ්‍ය WhatsApp Group වල JIDස් මෙහි දාන්න
+        // 📌 ප්‍රශ්න යැවීමට අවශ්‍ය WhatsApp Group වල JIDස්
         const targetGroups = [
             '120363429635141660@g.us', // My Group
             '120363405905961234@g.us', // 2027 Gonadeniya
@@ -148,11 +172,13 @@ async function sendDailyPollMCQ(sock) {
         ];
 
         for (const targetJid of targetGroups) {
-            if (lastQuestionExplanation) {
-                const answerText = `💡 *පසුගිය ප්‍රශ්නේ නිවැරදි පිළිතුර සහ විස්තරය:* \n\n✅ *හරි පිළිතුර:* ${lastQuestionExplanation.correctAnswer}\n📖 *පැහැදිලි කිරීම:* ${lastQuestionExplanation.explanation}`;
+            // පසුගිය ප්‍රශ්නයේ පිළිතුරක් ඇත්නම් යැවීම
+            if (store.lastQuestionExplanation) {
+                const answerText = `💡 *පසුගිය ප්‍රශ්නයේ නිවැරදි පිළිතුර සහ විස්තරය:* \n\n✅ *හරි පිළිතුර:* ${store.lastQuestionExplanation.correctAnswer}\n📖 *පැහැදිලි කිරීම:* ${store.lastQuestionExplanation.explanation}`;
                 await sock.sendMessage(targetJid, { text: answerText });
             }
 
+            // අලුත් MCQ Poll එක යැවීම
             await sock.sendMessage(targetJid, {
                 poll: {
                     name: data.question,
@@ -164,18 +190,30 @@ async function sendDailyPollMCQ(sock) {
         
         console.log('✅ සියලුම ගෲප් වෙත අලුත් MCQ Poll එක සහ පිළිතුර සාර්ථකව යැව්වා!');
 
-        lastQuestionExplanation = {
+        // 💾 අලුත් ඩේටා persistent storage (store.json) එකට සේව් කිරීම
+        store.askedQuestions.push(data.question);
+        if (store.askedQuestions.length > 20) {
+            store.askedQuestions.shift(); // පරණම ප්‍රශ්න අයින් කිරීම
+        }
+
+        store.lastQuestionExplanation = {
             correctAnswer: data.correctAnswer,
             explanation: data.explanation
         };
 
+        saveStore(store);
+
     } catch (error) {
-        console.error('⚠️ දෝෂයක් ඇතිවිය. තත්පර 30කින් නැවත උත්සාහ කරයි...', error.message);
+        console.error(`⚠️ දෝෂයක් ඇතිවිය (${retryCount + 1}/${MAX_RETRIES}):`, error.message);
         
-        setTimeout(() => {
-            console.log('🔄 මඟහැරුණු ප්‍රශ්නය යැවීමට නැවත උත්සාහ කරමින්...');
-            sendDailyPollMCQ(sock);
-        }, 30000);
+        if (retryCount < MAX_RETRIES) {
+            setTimeout(() => {
+                console.log('🔄 මඟහැරුණු ප්‍රශ්නය යැවීමට නැවත උත්සාහ කරමින්...');
+                sendDailyPollMCQ(sock, retryCount + 1);
+            }, 30000);
+        } else {
+            console.error('❌ උපරිම උත්සාහයන් සංඛ්‍යාව පසුවිය. මෙම වටය සඳහා ප්‍රශ්නය යැවීම අත්හිටුවන ලදී.');
+        }
     }
 }
 
