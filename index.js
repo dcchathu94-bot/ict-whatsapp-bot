@@ -1,4 +1,8 @@
 require('dotenv').config();
+
+// 🇱🇰 සර්වර් එකේ Timezone එක හරියටම ලංකාවේ වෙලාවට (Asia/Colombo) බලෙන් සකස් කිරීම
+process.env.TZ = 'Asia/Colombo';
+
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
 const qrcode = require('qrcode-terminal');
 const http = require('http');
@@ -85,6 +89,7 @@ async function connectToWhatsApp() {
             
             if (!cronStarted) {
                 cronStarted = true;
+                // ⏱️ ලංකාවේ වෙලාවෙන් 3PM, 6PM, 9PM, 12AM ට ප්‍රශ්න යැවීම
                 cron.schedule('0 15,18,21,0 * * *', () => {
                     console.log('⏰ නියමිත වෙලාව පැමිණ ඇත. Gemini AI ප්‍රශ්නය සකසමින් පවතී...');
                     sendDailyPollMCQ(sock);
@@ -130,7 +135,7 @@ async function connectToWhatsApp() {
 // Native Fetch හරහා Gemini API එකෙන් MCQ ප්‍රශ්නය ලබා ගැනීම
 async function generateMCQFromGemini() {
     const apiKey = process.env.GEMINI_API_KEY;
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
     const store = loadStore();
     const previousQuestionsText = store.askedQuestions.length > 0 ?  
