@@ -214,10 +214,10 @@ async function sendDailyPollMCQ(sock, retryCount = 0) {
         // 📌 ප්‍රශ්න යැවීමට අවශ්‍ය WhatsApp Group වල JIDස්
         const targetGroups = [
             '120363429635141660@g.us', // My Group
-            '120363405905961234@g.us', // 2027 Gonadeniya
-            '120363422669823543@g.us', // 2027 Akshara
-            '120363404399183574@g.us', // 2027 Nasa
-            '120363046104457178@g.us', // 2027 Hayasko
+           // '120363405905961234@g.us', // 2027 Gonadeniya
+           // '120363422669823543@g.us', // 2027 Akshara
+           // '120363404399183574@g.us', // 2027 Nasa
+           //'120363046104457178@g.us', // 2027 Hayasko
         ];
 
         for (const targetJid of targetGroups) {
