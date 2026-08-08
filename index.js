@@ -13,11 +13,16 @@ const admin = require('firebase-admin');
 http.createServer((req, res) => res.end('Baileys WhatsApp Bot is Running!')).listen(process.env.PORT || 3000);
 
 // 🔥 Firebase Admin SDK Initialize කිරීම
+let firebaseCreds;
+try {
+    // Render Environment Variables වලින් JSON යතුර කියවීම
+    firebaseCreds = JSON.parse(process.env.FIREBASE_CREDENTIALS);
+} catch (error) {
+    console.error("⚠️ Firebase Credentials අවුලක්! Render Settings වල FIREBASE_CREDENTIALS හරියට දාලා තියෙනවද බලන්න.");
+}
+
 admin.initializeApp({
-    credential: admin.credential.cert({
-        // Render/Railway වල dynamic credentials සඳහා (මෙය default fallback එකකි)
-        projectId: process.env.FIREBASE_DB_URL ? process.env.FIREBASE_DB_URL.split('//')[1].split('.')[0] : 'placeholder'
-    }),
+    credential: admin.credential.cert(firebaseCreds),
     databaseURL: process.env.FIREBASE_DB_URL
 });
 
@@ -155,7 +160,7 @@ async function connectToWhatsApp() {
                                        `==================================================\n\n`;
                     });
 
-                    // Buffer එකක් හරහා ෆයිල් එකක් සාදා WhatsApp එකට යැවීම (සර්වර් එකේ ෆයිල් සේව් නොවේ)
+                    // Buffer එකක් හරහා ෆයිල් එකක් සාදා WhatsApp එකට යැවීම
                     await sock.sendMessage(chatJid, {
                         document: Buffer.from(textContent, 'utf-8'),
                         mimetype: 'text/plain',
@@ -288,7 +293,7 @@ async function sendDailyPollMCQ(sock, retryCount = 0) {
         if (!store.askedQuestions) store.askedQuestions = [];
         store.askedQuestions.push(data.question);
         if (store.askedQuestions.length > 30) {
-            store.askedQuestions.shift(); // අසන ලද ප්‍රශ්න සීමාව 30 දක්වා වැඩි කළා
+            store.askedQuestions.shift();
         }
 
         store.lastQuestionExplanation = {
@@ -307,7 +312,7 @@ async function sendDailyPollMCQ(sock, retryCount = 0) {
                 sendDailyPollMCQ(sock, retryCount + 1);
             }, 30000);
         } else {
-            console.error('❌ උපරිම උත්සාහයන් සංඛ්‍යාව පසුවිය. මෙම වටය සඳහා ප්‍රශ්නය යැවීම අත්හිටුවන ලදී.');
+            console.error('❌ උපරිම උත්සාහයන් සංඛ්‍යාව පසුවිය. මෙම වටය සඳහා ප්‍රශ්නය යැවීම අත්හිටුවන ลදී.');
         }
     }
 }
