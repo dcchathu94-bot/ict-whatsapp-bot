@@ -164,12 +164,17 @@ Select the question strictly from one of these allowed areas:
 
 ${previousQuestionsText}
 
+CRITICAL JSON FORMATTING RULES:
+1. The response MUST be 100% valid JSON.
+2. DO NOT use double quotes (") inside the Sinhala text values. If you need to emphasize a word, use single quotes (') instead.
+3. Make sure all commas and brackets are perfectly placed.
+
 Return STRICTLY in this JSON format (no markdown blocks around it, just raw JSON):
 {
   "question": "Sinhala question text (Grade 10 O/L level only)",
   "options": ["ans1", "ans2", "ans3", "ans4"],
   "correctAnswer": "exact correct option text",
-  "explanation": "short explanation in sinhala"
+  "explanation": "short explanation in sinhala (do not use double quotes inside)"
 }`;
 
     const requestBody = {
