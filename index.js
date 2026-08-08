@@ -7,54 +7,65 @@ const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = requi
 const qrcode = require('qrcode-terminal');
 const http = require('http');
 const cron = require('node-cron');
-const fs = require('fs');
+const admin = require('firebase-admin');
 
 // Render / Cloud Server Port scan එක අසාර්ථක වීම වැළැක්වීමට HTTP Server එක
 http.createServer((req, res) => res.end('Baileys WhatsApp Bot is Running!')).listen(process.env.PORT || 3000);
 
-// 📁 Persistent Data Storage
-const STORE_FILE = './store.json';
-const HISTORY_FILE = './mcq_history.txt';
+// 🔥 Firebase Admin SDK Initialize කිරීම
+admin.initializeApp({
+    credential: admin.credential.cert({
+        // Render/Railway වල dynamic credentials සඳහා (මෙය default fallback එකකි)
+        projectId: process.env.FIREBASE_DB_URL ? process.env.FIREBASE_DB_URL.split('//')[1].split('.')[0] : 'placeholder'
+    }),
+    databaseURL: process.env.FIREBASE_DB_URL
+});
 
-function loadStore() {
+const db = admin.database();
+const storeRef = db.ref('bot_store');
+const historyRef = db.ref('mcq_history');
+
+// 🔄 Firebase හරහා Local Store එක Load කිරීමේ Function එක
+async function loadStore() {
     try {
-        if (fs.existsSync(STORE_FILE)) {
-            const raw = fs.readFileSync(STORE_FILE, 'utf8');
-            return JSON.parse(raw);
+        const snapshot = await storeRef.once('value');
+        const data = snapshot.val();
+        if (data) {
+            return {
+                lastQuestionExplanation: data.lastQuestionExplanation || null,
+                askedQuestions: data.askedQuestions || []
+            };
         }
     } catch (e) {
-        console.error('Store Load Error:', e.message);
+        console.error('Firebase Load Error:', e.message);
     }
     return { lastQuestionExplanation: null, askedQuestions: [] };
 }
 
-function saveStore(data) {
+// 🔄 Firebase හරහා Local Store එක Save කිරීමේ Function එක
+async function saveStore(data) {
     try {
-        fs.writeFileSync(STORE_FILE, JSON.stringify(data, null, 2), 'utf8');
+        await storeRef.set(data);
     } catch (e) {
-        console.error('Store Save Error:', e.message);
+        console.error('Firebase Save Error:', e.message);
     }
 }
 
-// 📖 සියලුම ප්‍රශ්න Permanent History File එකට සේව් කිරීමේ Function එක
-function appendToHistory(data) {
+// 📖 සියලුම ප්‍රශ්න Permanent Firebase History එකට සේව් කිරීමේ Function එක
+async function appendToHistory(data) {
     try {
         const timeString = new Date().toLocaleString('en-US', { timeZone: 'Asia/Colombo' });
-        const entry = `==================================================\n` +
-                      `📅 දිනය සහ වේලාව: ${timeString}\n` +
-                      `❓ ප්‍රශ්නය: ${data.question}\n` +
-                      `1. ${data.options[0]}\n` +
-                      `2. ${data.options[1]}\n` +
-                      `3. ${data.options[2]}\n` +
-                      `4. ${data.options[3]}\n\n` +
-                      `✅ නිවැරදි පිළිතුර: ${data.correctAnswer}\n` +
-                      `📖 පැහැදිලි කිරීම: ${data.explanation}\n` +
-                      `==================================================\n\n`;
-
-        fs.appendFileSync(HISTORY_FILE, entry, 'utf8');
-        console.log('💾 ප්‍රශ්නය history file එකට සේව් වුණා!');
+        const entry = {
+            timestamp: timeString,
+            question: data.question,
+            options: data.options,
+            correctAnswer: data.correctAnswer,
+            explanation: data.explanation
+        };
+        await historyRef.push(entry);
+        console.log('💾 ප්‍රශ්නය Firebase History එකට සාර්ථකව සේව් වුණා!');
     } catch (e) {
-        console.error('History Save Error:', e.message);
+        console.error('Firebase History Save Error:', e.message);
     }
 }
 
@@ -116,23 +127,47 @@ async function connectToWhatsApp() {
             await sock.sendMessage(chatJid, { text: `📌 මෙම චැට් එකේ JID එක මෙන්න:\n\n\`${chatJid}\`` });
         }
 
-        // 🚀 Manual Test Command - මැසේජ් යැවීම ක්ෂණිකව පරීක්ෂා කිරීමට (අලුතින් එකතු කළ කොටස)
+        // 🚀 Manual Test Command - මැසේජ් යැවීම ක්ෂණිකව පරීක්ෂා කිරීමට
         if (messageText === '!test') {
             await sock.sendMessage(chatJid, { text: '🔄 ටෙස්ට් කිරීම ආරම්භ විය. Gemini AI මඟින් ප්‍රශ්නය සකසමින් පවතී...' });
             sendDailyPollMCQ(sock); 
         }
 
-        // 📚 මෙතෙක් සේව් වුණු සියලුම MCQ ප්‍රශ්න එකතුව Document එකක් ලෙස ලබා ගැනීමට
+        // 📚 මෙතෙක් සේව් වුණු සියලුම MCQ ප්‍රශ්න එකතුව පෙළක් (Text) ලෙස ලබා ගැනීමට
         if (messageText === '!history') {
-            if (fs.existsSync(HISTORY_FILE)) {
-                await sock.sendMessage(chatJid, {
-                    document: { url: HISTORY_FILE },
-                    mimetype: 'text/plain',
-                    fileName: 'ICT_O_L_MCQ_History.txt',
-                    caption: '📚 මෙතෙක් යවන ලද සියලුම ICT MCQ ප්‍රශ්න සහ පිළිතුරු එකතුව මෙන්න!'
-                });
-            } else {
-                await sock.sendMessage(chatJid, { text: '⚠️ තවමත් කිසිදු ප්‍රශ්නයක් History එකට සේව් වී නොමැත.' });
+            try {
+                const snapshot = await historyRef.once('value');
+                const historyData = snapshot.val();
+                
+                if (historyData) {
+                    let textContent = "📚 මෙතෙක් යවන ලද සියලුම ICT MCQ ප්‍රශ්න සහ පිළිතුරු එකතුව\n\n";
+                    
+                    Object.values(historyData).forEach(data => {
+                        textContent += `==================================================\n` +
+                                       `📅 දිනය: ${data.timestamp}\n` +
+                                       `❓ ප්‍රශ්නය: ${data.question}\n` +
+                                       `1. ${data.options[0]}\n` +
+                                       `2. ${data.options[1]}\n` +
+                                       `3. ${data.options[2]}\n` +
+                                       `4. ${data.options[3]}\n\n` +
+                                       `✅ නිවැරදි පිළිතුර: ${data.correctAnswer}\n` +
+                                       `📖 පැහැදිලි කිරීම: ${data.explanation}\n` +
+                                       `==================================================\n\n`;
+                    });
+
+                    // Buffer එකක් හරහා ෆයිල් එකක් සාදා WhatsApp එකට යැවීම (සර්වර් එකේ ෆයිල් සේව් නොවේ)
+                    await sock.sendMessage(chatJid, {
+                        document: Buffer.from(textContent, 'utf-8'),
+                        mimetype: 'text/plain',
+                        fileName: 'ICT_O_L_MCQ_History.txt',
+                        caption: '📚 මෙතෙක් යවන ලද සියලුම ICT MCQ ප්‍රශ්න සහ පිළිතුරු එකතුව මෙන්න!'
+                    });
+                } else {
+                    await sock.sendMessage(chatJid, { text: '⚠️ තවමත් කිසිදු ප්‍රශ්නයක් Firebase History එකට සේව් වී නොමැත.' });
+                }
+            } catch (err) {
+                console.error('History command error:', err.message);
+                await sock.sendMessage(chatJid, { text: '⚠️ History දත්ත ලබා ගැනීමේදී දෝෂයක් ඇතිවිය.' });
             }
         }
     });
@@ -141,35 +176,37 @@ async function connectToWhatsApp() {
 // Native Fetch හරහා Gemini API එකෙන් MCQ ප්‍රශ්නය ලබා ගැනීම
 async function generateMCQFromGemini() {
     const apiKey = process.env.GEMINI_API_KEY;
-    // ⚠️ දෝෂය නිවැරදි කළා: gemini-3.5-flash වෙනුවට gemini-1.5-flash යෙදුවා
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
 
-    const store = loadStore();
+    const store = await loadStore();
     const previousQuestionsText = store.askedQuestions.length > 0 ?  
-        `Avoid these recent questions: ${JSON.stringify(store.askedQuestions.slice(-5))}` : '';
+        `Avoid these recent questions strictly: ${JSON.stringify(store.askedQuestions.slice(-10))}` : '';
 
     const promptText = `You are a strict Sri Lankan GCE O/L ICT teacher. Your task is to generate ONE multiple-choice question (MCQ) in clean Sinhala.
-CRITICAL RULE: The question MUST strictly belong ONLY to the official Sri Lankan GCE O/L ICT syllabus (Grade 10 Only). DO NOT include any Advanced Level (A/L) concepts, programming languages like Python/Java, or complex topics not found in the official textbooks.
-
-Select the question strictly from one of these allowed areas:
-1. Introduction to ICT & Data/Information
-2. Evolution of computers (Generations, History)
-3. Data representation (Binary, ASCII, Unicode)
-4. Logic gates (AND, OR, NOT, Truth tables)
-5. Operating systems (Functions, File management)
-6. Word processing (MS Word basics)
-7. Spreadsheets (MS Excel formulas, functions)
-8. Databases (MS Access tables, fields, types)
-9. Presentations (MS PowerPoint basics)
+CRITICAL RULE: The question MUST strictly belong ONLY to the official Sri Lankan GCE O/L ICT syllabus (Grade 10 Only). DO NOT include any Advanced Level (A/L) concepts.
 
 ${previousQuestionsText}
 
+CRITICAL CREATIVITY RULE: 
+DO NOT ask common or basic questions repeatedly. 
+RANDOMLY pick a very specific, deeper sub-topic from the allowed areas below to ensure the questions are highly unique and challenging every single time.
+
+Select the question strictly from ONE of these allowed areas:
+1. Introduction to ICT & Data/Information (Focus on specific applications)
+2. Evolution of computers (Focus on specific components of generations)
+3. Data representation (Focus on calculation or specific codes)
+4. Logic gates (Focus on complex truth tables or expressions)
+5. Operating systems (Focus on specific management functions)
+6. Word processing (Focus on specific formatting tools)
+7. Spreadsheets (Focus on specific formulas like IF, COUNT, etc.)
+8. Databases (Focus on Primary keys, data types)
+9. Presentations (Focus on transitions, animations, views)
+
 CRITICAL JSON FORMATTING RULES:
 1. The response MUST be 100% valid JSON.
-2. DO NOT use double quotes (") inside the Sinhala text values. If you need to emphasize a word, use single quotes (') instead.
-3. Make sure all commas and brackets are perfectly placed.
+2. DO NOT use double quotes (") inside the Sinhala text values. Use single quotes (') if needed.
 
-Return STRICTLY in this JSON format (no markdown blocks around it, just raw JSON):
+Return STRICTLY in this JSON format (no markdown blocks around it):
 {
   "question": "Sinhala question text (Grade 10 O/L level only)",
   "options": ["ans1", "ans2", "ans3", "ans4"],
@@ -183,7 +220,7 @@ Return STRICTLY in this JSON format (no markdown blocks around it, just raw JSON
         }],
         generationConfig: {
             responseMimeType: "application/json",
-            temperature: 0.3
+            temperature: 0.8
         }
     };
 
@@ -214,15 +251,15 @@ async function sendDailyPollMCQ(sock, retryCount = 0) {
         console.log('Gemini AI මඟින් 10 වසර පාඩම් වලින් අලුත්ම MCQ ප්‍රශ්නය සකසමින් පවතී...');
         
         const data = await generateMCQFromGemini();
-        const store = loadStore();
+        const store = await loadStore();
 
         // 📌 ප්‍රශ්න යැවීමට අවශ්‍ය WhatsApp Group වල JIDස්
         const targetGroups = [
             '120363429635141660@g.us', // My Group
-           // '120363405905961234@g.us', // 2027 Gonadeniya
-           // '120363422669823543@g.us', // 2027 Akshara
-           // '120363404399183574@g.us', // 2027 Nasa
-           //'120363046104457178@g.us', // 2027 Hayasko
+            //'120363405905961234@g.us', // 2027 Gonadeniya
+            //'120363422669823543@g.us', // 2027 Akshara
+            //'120363404399183574@g.us', // 2027 Nasa
+            //'120363046104457178@g.us', // 2027 Hayasko
         ];
 
         for (const targetJid of targetGroups) {
@@ -244,13 +281,14 @@ async function sendDailyPollMCQ(sock, retryCount = 0) {
         
         console.log('✅ සියලුම ගෲප් වෙත අලුත් MCQ Poll එක සහ පිළිතුර සාර්ථකව යැව්වා!');
 
-        // 💾 1. Permanent History File (mcq_history.txt) එකට එකතු කිරීම
-        appendToHistory(data);
+        // 💾 1. Permanent Firebase History එකට සේව් කිරීම
+        await appendToHistory(data);
 
-        // 💾 2. Recent State storage (store.json) එකට සේව් කිරීම
+        // 💾 2. Recent State එක Firebase එකට සේව් කිරීම
+        if (!store.askedQuestions) store.askedQuestions = [];
         store.askedQuestions.push(data.question);
-        if (store.askedQuestions.length > 20) {
-            store.askedQuestions.shift();
+        if (store.askedQuestions.length > 30) {
+            store.askedQuestions.shift(); // අසන ලද ප්‍රශ්න සීමාව 30 දක්වා වැඩි කළා
         }
 
         store.lastQuestionExplanation = {
@@ -258,7 +296,7 @@ async function sendDailyPollMCQ(sock, retryCount = 0) {
             explanation: data.explanation
         };
 
-        saveStore(store);
+        await saveStore(store);
 
     } catch (error) {
         console.error(`⚠️ දෝෂයක් ඇතිවිය (${retryCount + 1}/${MAX_RETRIES}):`, error.message);
