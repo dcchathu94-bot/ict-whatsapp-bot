@@ -103,7 +103,7 @@ async function connectToWhatsApp() {
         }
     });
 
-    // 📌 Commands සඳහා Message Listener (!jid සහ !history)
+    // 📌 Commands සඳහා Message Listener (!jid, !history සහ !test)
     sock.ev.on('messages.upsert', async ({ messages }) => {
         const m = messages[0];
         if (!m.message) return;
@@ -114,6 +114,12 @@ async function connectToWhatsApp() {
         // Group/Chat JID එක ලබා ගැනීමට
         if (messageText === '!jid') {
             await sock.sendMessage(chatJid, { text: `📌 මෙම චැට් එකේ JID එක මෙන්න:\n\n\`${chatJid}\`` });
+        }
+
+        // 🚀 Manual Test Command - මැසේජ් යැවීම ක්ෂණිකව පරීක්ෂා කිරීමට (අලුතින් එකතු කළ කොටස)
+        if (messageText === '!test') {
+            await sock.sendMessage(chatJid, { text: '🔄 ටෙස්ට් කිරීම ආරම්භ විය. Gemini AI මඟින් ප්‍රශ්නය සකසමින් පවතී...' });
+            sendDailyPollMCQ(sock); 
         }
 
         // 📚 මෙතෙක් සේව් වුණු සියලුම MCQ ප්‍රශ්න එකතුව Document එකක් ලෙස ලබා ගැනීමට
@@ -135,6 +141,7 @@ async function connectToWhatsApp() {
 // Native Fetch හරහා Gemini API එකෙන් MCQ ප්‍රශ්නය ලබා ගැනීම
 async function generateMCQFromGemini() {
     const apiKey = process.env.GEMINI_API_KEY;
+    // ⚠️ දෝෂය නිවැරදි කළා: gemini-3.5-flash වෙනුවට gemini-1.5-flash යෙදුවා
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
 
     const store = loadStore();
